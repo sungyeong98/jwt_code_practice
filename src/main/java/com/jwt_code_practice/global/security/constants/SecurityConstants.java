@@ -1,4 +1,4 @@
-package com.jwt_code_practice.global.security;
+package com.jwt_code_practice.global.security.constants;
 
 import java.util.Arrays;
 import java.util.HashMap;
