@@ -24,6 +24,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import com.jwt_code_practice.global.security.constants.SecurityConstants;
 import com.jwt_code_practice.global.security.filter.JwtAuthenticationFilter;
 import com.jwt_code_practice.global.security.filter.JwtAuthorizationFilter;
+import com.jwt_code_practice.global.security.handler.CustomLogoutHandler;
 import com.jwt_code_practice.global.security.jwt.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
@@ -91,6 +92,8 @@ public class SecurityConfig {
 		// JWT 인가 필터 생성
 		JwtAuthorizationFilter jwtAuthorizationFilter = new JwtAuthorizationFilter(jwtTokenProvider);
 
+		CustomLogoutHandler customLogoutHandler = new CustomLogoutHandler(jwtTokenProvider);
+
 		http
 			.headers(head -> head.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
 			.csrf(AbstractHttpConfigurer::disable)
@@ -107,7 +110,12 @@ public class SecurityConfig {
 			})
 			// JWT 필터 추가
 			.addFilter(jwtAuthenticationFilter)
-			.addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class);
+			.addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class)
+			.logout(logout -> logout
+				.logoutUrl("/api/v1/logout")
+				.addLogoutHandler(customLogoutHandler)
+				.logoutSuccessHandler(customLogoutHandler)
+			);
 
 		return http.build();
 	}

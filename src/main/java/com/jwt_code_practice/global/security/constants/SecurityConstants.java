@@ -28,7 +28,7 @@ public class SecurityConstants {
 		));
 
 		PUBLIC_URLS.put(HttpMethod.POST, Arrays.asList(
-			"/api/v1/auth/login",
+			"/api/v1/login",
 			"/api/v1/members/signup"
 		));
 	}
