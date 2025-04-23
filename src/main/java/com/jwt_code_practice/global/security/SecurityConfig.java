@@ -7,16 +7,24 @@ import java.util.Map;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.HeadersConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.jwt_code_practice.global.security.constants.SecurityConstants;
+import com.jwt_code_practice.global.security.filter.JwtAuthenticationFilter;
+import com.jwt_code_practice.global.security.filter.JwtAuthorizationFilter;
+import com.jwt_code_practice.global.security.jwt.JwtTokenProvider;
 
 import lombok.RequiredArgsConstructor;
 
@@ -45,6 +53,18 @@ import lombok.RequiredArgsConstructor;
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
+	private final JwtTokenProvider jwtTokenProvider;
+
+	@Bean
+	PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
+	}
+
+	@Bean
+	public AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {
+		return authenticationConfiguration.getAuthenticationManager();
+	}
+
 	/**
 	 * Spring Security 필터 체인을 구성하고 반환합니다.
 	 * <p>
@@ -64,7 +84,13 @@ public class SecurityConfig {
 	 * @throws Exception 보안 설정 구성 중 발생할 수 있는 예외
 	 */
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
+		// JWT 인증 필터 생성
+		JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(authenticationManager, jwtTokenProvider);
+
+		// JWT 인가 필터 생성
+		JwtAuthorizationFilter jwtAuthorizationFilter = new JwtAuthorizationFilter(jwtTokenProvider);
+
 		http
 			.headers(head -> head.frameOptions(HeadersConfigurer.FrameOptionsConfig::sameOrigin))
 			.csrf(AbstractHttpConfigurer::disable)
@@ -78,7 +104,11 @@ public class SecurityConfig {
 					)
 				);
 				authorizeRequests.anyRequest().authenticated();
-			});
+			})
+			// JWT 필터 추가
+			.addFilter(jwtAuthenticationFilter)
+			.addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class);
+
 		return http.build();
 	}
 

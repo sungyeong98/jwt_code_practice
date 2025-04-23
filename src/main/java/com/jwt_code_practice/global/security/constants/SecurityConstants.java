@@ -26,6 +26,11 @@ public class SecurityConstants {
 			"login/oauth2/code/kakao",
 			"/oauth2/authorization/kakao"
 		));
+
+		PUBLIC_URLS.put(HttpMethod.POST, Arrays.asList(
+			"/api/v1/auth/login",
+			"/api/v1/members/signup"
+		));
 	}
 
 	/**
