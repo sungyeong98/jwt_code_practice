@@ -1,1 +1,10 @@
-spring.application.name=jwt_code_practice
+spring:
+  application:
+    name: jwt_code_practice
+  config:
+    import:
+      - optional:file:.env[.properties]
+  profiles:
+    group:
+      dev: ["dev_auth", "dev_db", "dev_server"]
+    active: dev
