@@ -8,3 +8,6 @@ spring:
     group:
       dev: ["dev_auth", "dev_db", "dev_server"]
     active: dev
+logging:
+  level:
+    root: info

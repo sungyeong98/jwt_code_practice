@@ -106,11 +106,11 @@ public class SecurityConfig {
 						authorizeRequests.requestMatchers(method, url).permitAll()
 					)
 				);
+				authorizeRequests.requestMatchers("/error").permitAll();
 				authorizeRequests.anyRequest().authenticated();
 			})
-			// JWT 필터 추가
 			.addFilter(jwtAuthenticationFilter)
-			.addFilterBefore(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class)
+			.addFilterAfter(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class)
 			.logout(logout -> logout
 				.logoutUrl("/api/v1/logout")
 				.addLogoutHandler(customLogoutHandler)
@@ -143,7 +143,7 @@ public class SecurityConfig {
 	public UrlBasedCorsConfigurationSource corsConfigurationSource() {
 		CorsConfiguration configuration = new CorsConfiguration();
 		configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-		configuration.setAllowedOrigins(List.of("http://localhost:3000"));
+		configuration.setAllowedOrigins(Arrays.asList("http://localhost:3000", "http://localhost:8080"));
 		configuration.setAllowCredentials(true);
 		configuration.setAllowedHeaders(List.of("*"));
 		configuration.setExposedHeaders(Arrays.asList("Authorization", "Set-Cookie", "Access-Control-Allow-Credentials"));

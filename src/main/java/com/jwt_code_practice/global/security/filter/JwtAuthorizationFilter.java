@@ -1,10 +1,14 @@
 package com.jwt_code_practice.global.security.filter;
 
+import static com.jwt_code_practice.global.security.constants.SecurityConstants.*;
+
 import java.io.IOException;
 import java.util.Objects;
 
+import org.springframework.http.HttpMethod;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import com.jwt_code_practice.global.security.jwt.JwtTokenProvider;
@@ -42,10 +46,11 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        
+        log.debug("인증 필터 동작 중...");
+
         // 요청에서 JWT 토큰 추출
         String token = jwtTokenProvider.extractToken(request);
-        
+
         // 토큰이 유효한 경우 인증 정보 설정
         if (!Objects.isNull(token) && jwtTokenProvider.validateToken(token)) {
             Authentication authentication = jwtTokenProvider.getAuthentication(token);
@@ -57,5 +62,21 @@ public class JwtAuthorizationFilter extends OncePerRequestFilter {
         }
         
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+        log.info("전체 공개 url로 인증 과정을 스킵합니다.");
+        return isPublicUrl(request);
+    }
+
+    private boolean isPublicUrl(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        HttpMethod method = HttpMethod.valueOf(request.getMethod());
+
+        var patterns = getPublicUrls().get(method);
+
+        return patterns != null && patterns.stream()
+            .anyMatch(pattern -> new AntPathMatcher().match(pattern, requestUri));
     }
 }

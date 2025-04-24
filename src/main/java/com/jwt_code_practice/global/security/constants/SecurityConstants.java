@@ -23,7 +23,7 @@ public class SecurityConstants {
 	static {
 		PUBLIC_URLS.put(HttpMethod.GET, Arrays.asList(
 			"/h2-console/**",
-			"login/oauth2/code/kakao",
+			"/login/oauth2/code/kakao",
 			"/oauth2/authorization/kakao"
 		));
 

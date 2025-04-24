@@ -3,15 +3,22 @@ package com.jwt_code_practice.domain.member.entity;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.util.UUID;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -42,6 +49,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class Member implements Serializable {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -61,9 +69,11 @@ public class Member implements Serializable {
 	private String phone;
 
 	@Column(name = "member_role", nullable = false)
+	@Enumerated(EnumType.STRING)
 	private MemberRole memberRole;
 
 	@Column(name = "member_status", nullable = false)
+	@Enumerated(EnumType.STRING)
 	private MemberStatus memberStatus;
 
 	@Column(name = "member_id", nullable = false)
@@ -82,4 +92,27 @@ public class Member implements Serializable {
 
 	@Serial
 	private static final long serialVersionUID = 1L;
+
+	@PrePersist
+	protected void onCreate() {
+		this.uniqueId = UUID.randomUUID().toString();
+		if (this.createdAt == null) {
+			this.createdAt = LocalDateTime.now();
+		}
+		if (this.updatedAt == null) {
+			this.updatedAt = LocalDateTime.now();
+		}
+		if (memberRole == null) {
+			memberRole = MemberRole.ROLE_USER;
+		}
+		if (memberStatus == null) {
+			memberStatus = MemberStatus.ACTIVE;
+		}
+
+	}
+
+	@PreUpdate
+	protected void onUpdate() {
+		this.updatedAt = LocalDateTime.now();
+	}
 }
