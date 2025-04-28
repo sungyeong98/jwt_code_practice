@@ -18,6 +18,7 @@ public enum ErrorCode {
 	ENTITY_NOT_FOUND(HttpStatus.NOT_FOUND, "해당 데이터를 찾을 수 없습니다."),
 
 	// 인증 인가 에러
+	NOT_SUPPORTED_OAUTH_LOGIN(HttpStatus.BAD_REQUEST, "지원되지 않는 소셜 로그인 요청입니다."),
 	AUTHENTICATION_REQUEST_PARSE_ERROR(HttpStatus.BAD_REQUEST, "인증 요청을 처리하는 과정에서 오류가 발생했습니다."),
 	UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증되지 않은 사용자입니다."),
 	ACCESS_DENIED(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),

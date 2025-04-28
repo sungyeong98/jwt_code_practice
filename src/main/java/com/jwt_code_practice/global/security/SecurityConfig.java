@@ -26,6 +26,8 @@ import com.jwt_code_practice.global.security.filter.JwtAuthenticationFilter;
 import com.jwt_code_practice.global.security.filter.JwtAuthorizationFilter;
 import com.jwt_code_practice.global.security.handler.CustomLogoutHandler;
 import com.jwt_code_practice.global.security.jwt.JwtTokenProvider;
+import com.jwt_code_practice.global.security.oauth.handler.OAuth2LoginSuccessHandler;
+import com.jwt_code_practice.global.security.oauth.service.CustomOAuth2UserService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -55,6 +57,7 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class SecurityConfig {
 	private final JwtTokenProvider jwtTokenProvider;
+	private final OAuth2LoginSuccessHandler oAuth2LoginSuccesshandler;
 
 	@Bean
 	PasswordEncoder passwordEncoder() {
@@ -85,7 +88,8 @@ public class SecurityConfig {
 	 * @throws Exception 보안 설정 구성 중 발생할 수 있는 예외
 	 */
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager) throws Exception {
+	public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationManager authenticationManager,
+		CustomOAuth2UserService customOAuth2UserService) throws Exception {
 		// JWT 인증 필터 생성
 		JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(authenticationManager, jwtTokenProvider);
 
@@ -111,6 +115,12 @@ public class SecurityConfig {
 			})
 			.addFilter(jwtAuthenticationFilter)
 			.addFilterAfter(jwtAuthorizationFilter, UsernamePasswordAuthenticationFilter.class)
+			.oauth2Login(oauth2 -> oauth2
+				.userInfoEndpoint(userInfo -> userInfo
+					.userService(customOAuth2UserService)
+				)
+				.successHandler(oAuth2LoginSuccesshandler)
+			)
 			.logout(logout -> logout
 				.logoutUrl("/api/v1/logout")
 				.addLogoutHandler(customLogoutHandler)

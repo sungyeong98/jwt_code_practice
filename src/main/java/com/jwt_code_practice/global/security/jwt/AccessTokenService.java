@@ -1,13 +1,23 @@
 package com.jwt_code_practice.global.security.jwt;
 
 import java.util.Date;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+import com.jwt_code_practice.domain.member.entity.Member;
+import com.jwt_code_practice.domain.member.repository.MemberRepository;
 import com.jwt_code_practice.global.config.redis.RedisRepository;
+import com.jwt_code_practice.global.exception.ErrorCode;
+import com.jwt_code_practice.global.exception.ServiceException;
+import com.jwt_code_practice.global.security.oauth.model.OAuth2UserInfo;
+import com.jwt_code_practice.global.security.oauth.service.OAuth2UserInfoFactory;
 import com.jwt_code_practice.global.security.user.CustomUserDetails;
 import com.jwt_code_practice.global.security.user.CustomUserDetailsService;
 
@@ -43,6 +53,7 @@ public class AccessTokenService {
 	private final CustomUserDetailsService userDetailsService;
 	private final RedisRepository redisRepository;
 	private final TokenUtilService tokenUtilService;
+	private final MemberRepository memberRepository;
 
 	/**
 	 * 사용자 인증 정보를 기반으로 JWT 액세스 토큰을 생성합니다.
@@ -61,18 +72,62 @@ public class AccessTokenService {
 	 * @return 생성된 JWT 액세스 토큰 문자열
 	 */
 	public String createAccessToken(Authentication authentication) {
-		CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-
 		long now = (new Date()).getTime();
 
-		return Jwts.builder()
-			.claim("iss", tokenUtilService.getFrontend())
-			.claim("sub", userDetails.getMemberInfo().getId())
-			.claim("role", userDetails.getMemberInfo().getRole())
-			.setIssuedAt(new Date(now))
-			.setExpiration(new Date(now + tokenUtilService.getAccessTokenValidExpiration()))
-			.signWith(tokenUtilService.getKey(), SignatureAlgorithm.HS512)
-			.compact();
+		// Principal 타입에 따라 다르게 처리
+		if (authentication.getPrincipal() instanceof CustomUserDetails) {
+			// 일반 로그인의 경우
+			CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+
+			return Jwts.builder()
+				.claim("iss", tokenUtilService.getFrontend())
+				.claim("sub", userDetails.getMemberInfo().getId())
+				.claim("role", userDetails.getMemberInfo().getRole())
+				.setIssuedAt(new Date(now))
+				.setExpiration(new Date(now + tokenUtilService.getAccessTokenValidExpiration()))
+				.signWith(tokenUtilService.getKey(), SignatureAlgorithm.HS512)
+				.compact();
+		} else if (authentication.getPrincipal() instanceof OAuth2User) {
+			// OAuth2 로그인의 경우
+			OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+
+			// OAuth2User에서 필요한 정보 추출
+			// 이메일을 기반으로 사용자 정보 조회
+			String email = null;
+
+			// OAuth2 제공자 확인 (Kakao, Google 등)
+			if (authentication instanceof OAuth2AuthenticationToken) {
+				String registrationId = ((OAuth2AuthenticationToken) authentication).getAuthorizedClientRegistrationId();
+
+				// OAuth2UserInfo를 통해 이메일 정보 추출
+				OAuth2UserInfo userInfo = OAuth2UserInfoFactory.getOAuth2UserInfo(
+					registrationId, oAuth2User.getAttributes());
+				email = userInfo.getEmail();
+			} else {
+				// 기본 속성에서 이메일 추출 시도
+				email = (String) oAuth2User.getAttributes().get("email");
+			}
+
+			// 이메일로 사용자 조회
+			Optional<Member> memberOptional = memberRepository.findByEmail(email);
+
+			if (memberOptional.isPresent()) {
+				Member member = memberOptional.get();
+
+				return Jwts.builder()
+					.claim("iss", tokenUtilService.getFrontend())
+					.claim("sub", member.getId())
+					.claim("role", member.getMemberRole())
+					.setIssuedAt(new Date(now))
+					.setExpiration(new Date(now + tokenUtilService.getAccessTokenValidExpiration()))
+					.signWith(tokenUtilService.getKey(), SignatureAlgorithm.HS512)
+					.compact();
+			} else {
+				throw new UsernameNotFoundException("소셜 로그인 사용자 정보를 찾을 수 없습니다: " + email);
+			}
+		} else {
+			throw new ServiceException(ErrorCode.NOT_SUPPORTED_OAUTH_LOGIN);
+		}
 	}
 
 	/**

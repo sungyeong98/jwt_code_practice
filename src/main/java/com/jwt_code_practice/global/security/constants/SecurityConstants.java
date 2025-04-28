@@ -7,15 +7,14 @@ import java.util.Map;
 
 import org.springframework.http.HttpMethod;
 
+import lombok.experimental.UtilityClass;
+
 /**
  * 전체 허용 URL 목록을 저장, 가져오는 클래스
  * @author sungyeong98
  */
+@UtilityClass
 public class SecurityConstants {
-	private SecurityConstants() {
-		throw new IllegalStateException("Utility class");
-	}
-
 	/**
 	 * 전체 허용 URL 목록
 	 */
