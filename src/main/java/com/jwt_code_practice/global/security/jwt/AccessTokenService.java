@@ -37,14 +37,23 @@ import lombok.extern.slf4j.Slf4j;
  * <p>
  * 주요 기능:
  * <ul>
- *   <li>액세스 토큰 생성</li>
- *   <li>토큰에서 인증 정보 추출</li>
- *   <li>HTTP 요청에서 액세스 토큰 추출</li>
- *   <li>로그아웃 시 토큰 블랙리스트 관리</li>
+ *   <li>액세스 토큰 생성 - 일반 로그인 및 OAuth2 로그인 지원</li>
+ *   <li>토큰에서 인증 정보 추출 - JWT 클레임에서 사용자 정보 파싱</li>
+ *   <li>토큰 블랙리스트 관리 - 로그아웃 처리 및 토큰 무효화</li>
  * </ul>
+ * </p>
+ * <p>
+ * 이 서비스는 {@link TokenUtilService}와 협력하여 토큰 관련 유틸리티 기능을 활용하고,
+ * {@link RedisRepository}를 통해 토큰 블랙리스트를 관리합니다.
+ * 또한 {@link CustomUserDetailsService}를 사용하여 토큰에서 추출한 사용자 ID를 기반으로
+ * 사용자 상세 정보를 로드합니다.
  * </p>
  *
  * @author sungyeong98
+ * @see TokenUtilService
+ * @see RedisRepository
+ * @see CustomUserDetailsService
+ * @see Authentication
  */
 @Slf4j
 @Service
@@ -58,6 +67,10 @@ public class AccessTokenService {
 	/**
 	 * 사용자 인증 정보를 기반으로 JWT 액세스 토큰을 생성합니다.
 	 * <p>
+	 * 이 메서드는 일반 로그인과 OAuth2 로그인 두 가지 인증 방식을 모두 지원합니다.
+	 * 인증 객체의 Principal 타입에 따라 적절한 방식으로 토큰을 생성합니다.
+	 * </p>
+	 * <p>
 	 * 생성된 토큰에는 다음 정보가 포함됩니다:
 	 * <ul>
 	 *   <li>발행자(iss): 프론트엔드 도메인</li>
@@ -67,9 +80,16 @@ public class AccessTokenService {
 	 *   <li>만료 시간(exp): 현재 시간 + 설정된 만료 기간</li>
 	 * </ul>
 	 * </p>
+	 * <p>
+	 * 일반 로그인의 경우 {@link CustomUserDetails}에서 사용자 정보를 추출하고,
+	 * OAuth2 로그인의 경우 {@link OAuth2User}에서 이메일을 추출한 후 해당 이메일로
+	 * 데이터베이스에서 사용자 정보를 조회하여 토큰을 생성합니다.
+	 * </p>
 	 *
-	 * @param authentication 사용자 인증 정보
+	 * @param authentication 사용자 인증 정보 (일반 로그인 또는 OAuth2 로그인)
 	 * @return 생성된 JWT 액세스 토큰 문자열
+	 * @throws UsernameNotFoundException OAuth2 로그인 시 이메일로 사용자를 찾을 수 없는 경우
+	 * @throws ServiceException 지원되지 않는 인증 방식인 경우 (NOT_SUPPORTED_OAUTH_LOGIN)
 	 */
 	public String createAccessToken(Authentication authentication) {
 		long now = (new Date()).getTime();
@@ -133,14 +153,27 @@ public class AccessTokenService {
 	/**
 	 * JWT 토큰에서 인증 정보를 추출합니다.
 	 * <p>
-	 * 토큰의 서명을 검증하고, 페이로드에서 사용자 ID를 추출하여 해당 사용자의
-	 * 상세 정보를 로드합니다. 로드된 사용자 정보를 기반으로 Spring Security에서
-	 * 사용할 수 있는 Authentication 객체를 생성하여 반환합니다.
+	 * 이 메서드는 다음과 같은 과정을 통해 토큰에서 인증 정보를 추출합니다:
+	 * <ol>
+	 *   <li>{@link TokenUtilService}를 사용하여 토큰의 서명을 검증하고 클레임을 추출</li>
+	 *   <li>클레임에서 사용자 ID(sub)를 추출</li>
+	 *   <li>{@link CustomUserDetailsService}를 통해 사용자 ID로 사용자 상세 정보 로드</li>
+	 *   <li>로드된 사용자 정보와 권한을 기반으로 {@link UsernamePasswordAuthenticationToken} 생성</li>
+	 * </ol>
+	 * </p>
+	 * <p>
+	 * 생성된 Authentication 객체는 Spring Security의 SecurityContext에 설정되어
+	 * 인증된 사용자로서 보호된 리소스에 접근할 수 있게 합니다.
+	 * </p>
+	 * <p>
+	 * 이 메서드는 주로 {@link com.jwt_code_practice.global.security.filter.JwtAuthorizationFilter}에서
+	 * 요청에 포함된 토큰을 검증하고 인증 정보를 설정하는 데 사용됩니다.
 	 * </p>
 	 *
 	 * @param token 검증 및 정보 추출 대상 JWT 토큰
 	 * @return 토큰에서 추출한 사용자 인증 정보
 	 * @throws io.jsonwebtoken.JwtException 토큰이 유효하지 않거나 만료된 경우
+	 * @throws UsernameNotFoundException 토큰의 사용자 ID로 사용자를 찾을 수 없는 경우
 	 */
 	public Authentication getAuthentication(String token) {
 		Claims claims = tokenUtilService.getClaims(token);
@@ -153,9 +186,25 @@ public class AccessTokenService {
 	/**
 	 * 액세스 토큰을 블랙리스트에 등록합니다.
 	 * <p>
-	 * 로그아웃 또는 토큰 무효화가 필요한 경우 호출됩니다. 기존 토큰을 Redis에서 제거하고,
-	 * 토큰의 남은 유효 기간 동안 블랙리스트에 등록하여 재사용을 방지합니다.
+	 * 이 메서드는 로그아웃 처리 또는 토큰 무효화가 필요한 경우 호출됩니다.
 	 * 블랙리스트에 등록된 토큰은 유효한 서명을 가지고 있더라도 인증에 사용할 수 없습니다.
+	 * </p>
+	 * <p>
+	 * 블랙리스트 등록 과정:
+	 * <ol>
+	 *   <li>Redis에서 기존 토큰 관련 데이터 제거</li>
+	 *   <li>토큰의 남은 유효 기간 계산</li>
+	 *   <li>토큰이 아직 유효한 경우, 남은 유효 기간 동안 블랙리스트에 등록</li>
+	 * </ol>
+	 * </p>
+	 * <p>
+	 * 블랙리스트는 Redis에 "blacklist" + 토큰 문자열을 키로 하여 저장됩니다.
+	 * 토큰의 남은 유효 기간이 만료되면 Redis에서 자동으로 제거되므로,
+	 * 별도의 정리 작업이 필요하지 않습니다.
+	 * </p>
+	 * <p>
+	 * 이 메서드는 주로 {@link com.jwt_code_practice.global.security.handler.CustomLogoutHandler}에서
+	 * 사용자 로그아웃 처리 시 호출됩니다.
 	 * </p>
 	 *
 	 * @param accessToken 블랙리스트에 등록할 액세스 토큰
